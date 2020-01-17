@@ -1,5 +1,5 @@
 ---
-title: "initial estimate of number of cases in Wuhan City"
+title: "initial estimate of number of novel coronavirus cases in Wuhan City"
 author: "Natsuko Imai"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -35,6 +35,7 @@ Additionally, three cases have been confirmed in travellers who had travelled fr
 Using these international cases, it is possible to infer the magnitude of comparable cases within Wuhan City that may have occurred thus far. Case detection may be more sensitive amongst travellers compared to residents.
 
 ### Assumptions
+See https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/news--wuhan-coronavirus/ for full methods and assumptions and caveats.
 
 We explore the following scenarios.
 
@@ -102,6 +103,7 @@ prob_travel_during_window <- detection_window * (daily_passengers_by_country/pop
 
 
 ```{r functions}
+
 
 expected_cases <- function(cases, pop_at_risk, serial_interval, daily_passengers){
   
