@@ -1,0 +1,310 @@
+---
+title: "initial estimate of number of cases in Wuhan City"
+author: "Natsuko Imai"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  word_document:
+    fig_width: 7
+    fig_height: 5
+    fig_caption: true
+    highlight: "tango"
+    reference_docx: word_style.docx
+---
+  
+  
+```{r options, include = FALSE, message = FALSE, warning = FALSE, error = FALSE}
+
+opts_chunk$set(collapse = TRUE)
+opts_chunk$set(echo = FALSE)
+
+library(readxl)
+#library(orderly)
+#orderly_run("A_prepare_vhf_linelist", parameters = list(file_type = "xlsx"))
+#orderly_test_start("A_prepare_vhf_linelist", parameters = list(file_type = "xlsx"))
+
+```
+
+
+### Inferring the domestic case numbers of nCov in Wuhan City using cases detected amongst travellers
+
+On 31 December 2019, WHO was informed of a cluster of cases of pneumonia of unknown cause detected in Wuhan City, Hubei Province of China.
+Sequencing analysis has confirmed that a novel Coronavirus as the causative agent. As of 16 January 2020, there have been 41 confirmed cases in Wuhan City with one death.
+
+Additionally, three cases have been confirmed in travellers who had travelled from Wuhan City and were picked up in Thailand (2 cases) and Japan (1 case).
+
+Using these international cases, it is possible to infer the magnitude of comparable cases within Wuhan City that may have occurred thus far. Case detection may be more sensitive amongst travellers compared to residents.
+
+### Assumptions
+
+We explore the following scenarios.
+
+Baseline:
+  1. number of international cases = 3
+  2. daily passengers from Wuhan International Airport = 3301
+  3. detection window = 10 days
+  4. population of Wuhan (catchment area of the airport) = 19 million
+  
+Scenario 1:
+  1. number of international cases = 3
+  2. daily passengers from Wuhan International Airport = 3301
+  3. detection window = 10 days
+  4. population of Wuhan (catchment area of the airport) = 11 million
+
+Scenario 2:
+  1. number of international cases = 3
+  2. daily passengers from Wuhan International Airport = 3301
+  3. detection window = 8 days
+  4. population of Wuhan (catchment area of the airport) = 19 million
+
+Scenario 3:
+  1. number of international cases = 2
+  2. daily passengers from Wuhan International Airport = 3301
+  3. detection window = 10 days
+  4. population of Wuhan (catchment area of the airport) = 19 million
+
+Scenario 4:
+  1. number of international cases = 4
+  2. daily passengers from Wuhan International Airport = 3301
+  3. detection window = 10 days
+  4. population of Wuhan (catchment area of the airport) = 19 million
+  
+  
+```{r options, include = FALSE, message = FALSE, warning = FALSE, error = FALSE}
+
+opts_chunk$set(collapse = TRUE)
+opts_chunk$set(echo = FALSE)
+
+library(readxl)
+library(ggplot2)
+library(ggpubr)
+
+```
+
+
+```{r assumptions}
+# pop estimates from WHO DON: https://www.who.int/csr/don/05-january-2020-pneumonia-of-unkown-cause-china/en/
+pop_wuhan_city <- c(19000000) #c(11000000) #
+pop_options <- c(11e6, 19e6)
+
+detection_window <- c(10)
+detection_window_options <- c(8, 10)
+# observed international cases
+exported_cases <- 3
+exported_cases_options <- c(1:10)
+
+# daily passengers Jan-Mar 2018 from Wuhan International Airport (IATA 2018, Bluedot) scaled to account for Chinese New Year using 2016 IATA data.
+daily_passengers_by_country <- c(3301)
+
+# probability of travel during detection window
+prob_travel_during_window <- detection_window * (daily_passengers_by_country/pop_wuhan_city)
+
+```
+
+
+```{r functions}
+
+expected_cases <- function(cases, pop_at_risk, serial_interval, daily_passengers){
+  
+  out <- cases * pop_at_risk * (1/serial_interval) * (1/daily_passengers)
+
+  return(out)
+}
+
+
+binom_lnl <- function(N, cases, prob_travel_during_window){
+
+LnL <- lgamma(N + cases + 1) - lgamma(cases + 1) - lgamma(N + 1) + cases * log(prob_travel_during_window) +
+        (N - cases) * log(1 - prob_travel_during_window)
+
+return(LnL)
+}
+
+
+max_lnl <- function(N,
+                  cases,
+                  prob_travel_during_window){
+  
+  lnl_seq <- binom_lnl(N, cases, prob_travel_during_window)
+  max_lnl <- max(lnl_seq)
+  return(max_lnl)
+  
+}
+
+
+estimates_ci <- function(N, cases, prob_travel_during_window){
+  
+  lnl_seq <- binom_lnl(N, cases, prob_travel_during_window)
+  max_lnl <- max(lnl_seq)
+  diff_lnl <- max_lnl - lnl_seq
+  
+  temp <- data.frame(est_cases = N,
+                     lnl = lnl_seq,
+                     d_lnl = diff_lnl)
+  
+  return(temp)
+  
+}
+
+extract_ci <- function(N, cases, prob_travel_during_window, threshold = 1.2){
+  
+  dat <- estimates_ci(N, cases, prob_travel_during_window)
+  max <- max_lnl(N, cases, prob_travel_during_window)
+  
+  limits <- max - 1.92 # 1.92 as chi-squared approximation for 95% CI
+  
+  central_estimate <- dat$est_cases[which(dat$lnl == max)]
+
+  above_maxlnl <- which(dat$est_cases > round(central_estimate))
+  below_maxlnl <- which(dat$est_cases < round(central_estimate))
+  
+  dat_up <- dat[above_maxlnl, ]
+  dat_low <- dat[below_maxlnl, ]
+  
+  lim_up <- dat_up$est_cases[which(abs(dat_up$lnl-limits)==min(abs(dat_up$lnl-limits)))]
+  lim_low <- dat_low$est_cases[which(abs(dat_low$lnl-limits)==min(abs(dat_low$lnl-limits)))]
+
+  out <- c(lower_ci = lim_low, central = central_estimate, upper_ci = lim_up)
+  return(out)
+  
+}
+
+```
+
+```{r calc_expected}
+# based on international travel by country
+expected_cases(cases = exported_cases, 
+               pop_at_risk = pop_wuhan_city, 
+               serial_interval = detection_window,
+               daily_passengers = daily_passengers_by_country)
+```
+
+```{r sensitivity}
+##############################################
+# for different lengths of detection windows:
+##############################################
+
+prob_travel_during_window <- detection_window_options * (daily_passengers_by_country/pop_wuhan_city)
+
+by_time_window <- expected_cases(cases = exported_cases, 
+               pop_at_risk = pop_wuhan_city, 
+               serial_interval = detection_window_options,
+               daily_passengers = daily_passengers_by_country)
+
+
+ci_by_time_window <- list()
+for(i in 1:length(detection_window_options)){
+  
+  ci_by_time_window[[i]] <- extract_ci(N = c(30:50000), 
+                                       cases = exported_cases, 
+                                       prob_travel_during_window[i], 
+                                       threshold = 1.2
+                                       )
+  
+}
+
+
+ci_by_time_window_df <- do.call(rbind, ci_by_time_window)
+
+time_window_output <- as.data.frame(cbind(detection_window = detection_window_options,
+                                    population = pop_wuhan_city,
+                                    travellers_per_day = daily_passengers_by_country, 
+                                    num_international_cases = exported_cases,
+                                    ci_by_time_window_df))
+
+######################################
+### for different population sizes:###
+######################################
+pop_options <- c(11e6, 19e6)
+# probability of travel during detection window
+prob_travel_options <- detection_window * (daily_passengers_by_country/pop_options)
+
+by_pop_size <- expected_cases(cases = exported_cases, 
+                              pop_at_risk = pop_options, 
+                              serial_interval = detection_window,
+                              daily_passengers = daily_passengers_by_country
+                              )
+
+
+ci_by_population <- list()
+for(i in 1:length(prob_travel_options)){
+  
+  ci_by_population[[i]] <- extract_ci(N = c(30:50000), 
+                                      cases = exported_cases, 
+                                      prob_travel_options[i], 
+                                      threshold = 1.2)
+  
+}
+
+ci_by_pop_df <- do.call(rbind, ci_by_population)
+
+populations_output <- as.data.frame(cbind(detection_window = detection_window,
+                                    population = pop_options,
+                                    travellers_per_day = daily_passengers_by_country, 
+                                    num_international_cases = exported_cases,
+                                    ci_by_pop_df))
+
+
+######################################
+### for different case numbers    :###
+######################################
+exported_cases_options <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+prob_travel_during_window <- detection_window * (daily_passengers_by_country/pop_wuhan_city)
+
+
+by_cases <- expected_cases(cases = exported_cases_options, 
+                           pop_at_risk = pop_wuhan_city, 
+                           serial_interval = detection_window,
+                           daily_passengers = daily_passengers_by_country)
+
+
+ci_by_cases <- list()
+for(i in 1:length(exported_cases_options)){
+  
+  ci_by_cases[[i]] <- extract_ci(N = c(30:50000), 
+                                 cases = exported_cases_options[i], 
+                                 prob_travel_during_window,
+                                 threshold = 1.2)
+  
+}
+
+
+ci_by_cases_df <- do.call(rbind, ci_by_cases)
+
+cases_output <- as.data.frame(cbind(detection_window = detection_window,
+                                    population = pop_wuhan_city,
+                                    travellers_per_day = daily_passengers_by_country, 
+                                    num_international_cases = exported_cases_options,
+                                    ci_by_cases_df))
+
+```
+
+```{r render-table1}
+library(kableExtra)
+kable(time_window_output)%>%
+  kable_styling()
+
+```
+
+```{r render-table2}
+kable(populations_output)%>%
+  kable_styling()
+
+```
+
+```{r render-table3}
+kable(cases_output)%>%
+  kable_styling()
+
+```
+
+```{r ggplot_cases}
+
+p <- ggplot() + geom_pointrange(data = cases_output, 
+                                aes(x = num_international_cases, y = central, ymin = lower_ci, ymax = upper_ci)) +
+                theme_pubr() + xlab("number of cases detected outside of mainland China") + ylab("total number of cases") +
+                scale_x_continuous(breaks=seq(0,10,2))
+
+ggsave("wuhan_by_international_cases.png", plot = p, 
+         scale = 1, width = 15, height = 10, units = c("cm"),
+        dpi = 350)
+```
