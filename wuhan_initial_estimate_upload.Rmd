@@ -18,9 +18,8 @@ opts_chunk$set(collapse = TRUE)
 opts_chunk$set(echo = FALSE)
 
 library(readxl)
-#library(orderly)
-#orderly_run("A_prepare_vhf_linelist", parameters = list(file_type = "xlsx"))
-#orderly_test_start("A_prepare_vhf_linelist", parameters = list(file_type = "xlsx"))
+library(ggplot2)
+library(ggpubr)
 
 ```
 
@@ -70,16 +69,6 @@ Scenario 4:
   4. population of Wuhan (catchment area of the airport) = 19 million
   
   
-```{r options, include = FALSE, message = FALSE, warning = FALSE, error = FALSE}
-
-opts_chunk$set(collapse = TRUE)
-opts_chunk$set(echo = FALSE)
-
-library(readxl)
-library(ggplot2)
-library(ggpubr)
-
-```
 
 
 ```{r assumptions}
@@ -90,7 +79,7 @@ pop_options <- c(11e6, 19e6)
 detection_window <- c(10)
 detection_window_options <- c(8, 10)
 # observed international cases
-exported_cases <- 3
+exported_cases <- 4
 exported_cases_options <- c(1:10)
 
 # daily passengers Jan-Mar 2018 from Wuhan International Airport (IATA 2018, Bluedot) scaled to account for Chinese New Year using 2016 IATA data.
@@ -147,7 +136,7 @@ estimates_ci <- function(N, cases, prob_travel_during_window){
   
 }
 
-extract_ci <- function(N, cases, prob_travel_during_window, threshold = 1.2){
+extract_ci <- function(N, cases, prob_travel_during_window){
   
   dat <- estimates_ci(N, cases, prob_travel_during_window)
   max <- max_lnl(N, cases, prob_travel_during_window)
@@ -198,8 +187,7 @@ for(i in 1:length(detection_window_options)){
   
   ci_by_time_window[[i]] <- extract_ci(N = c(30:50000), 
                                        cases = exported_cases, 
-                                       prob_travel_during_window[i], 
-                                       threshold = 1.2
+                                       prob_travel_during_window[i]
                                        )
   
 }
@@ -232,8 +220,7 @@ for(i in 1:length(prob_travel_options)){
   
   ci_by_population[[i]] <- extract_ci(N = c(30:50000), 
                                       cases = exported_cases, 
-                                      prob_travel_options[i], 
-                                      threshold = 1.2)
+                                      prob_travel_options[i])
   
 }
 
@@ -264,8 +251,7 @@ for(i in 1:length(exported_cases_options)){
   
   ci_by_cases[[i]] <- extract_ci(N = c(30:50000), 
                                  cases = exported_cases_options[i], 
-                                 prob_travel_during_window,
-                                 threshold = 1.2)
+                                 prob_travel_during_window)
   
 }
 
@@ -310,3 +296,4 @@ ggsave("wuhan_by_international_cases.png", plot = p,
          scale = 1, width = 15, height = 10, units = c("cm"),
         dpi = 350)
 ```
+
