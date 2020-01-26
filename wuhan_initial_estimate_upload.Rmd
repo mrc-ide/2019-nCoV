@@ -79,7 +79,7 @@ pop_options <- c(11e6, 19e6)
 detection_window <- c(10)
 detection_window_options <- c(8, 10)
 # observed international cases
-exported_cases <- 4
+exported_cases <- 3
 exported_cases_options <- c(1:10)
 
 # daily passengers Jan-Mar 2018 from Wuhan International Airport (IATA 2018, Bluedot) scaled to account for Chinese New Year using 2016 IATA data.
@@ -94,9 +94,9 @@ prob_travel_during_window <- detection_window * (daily_passengers_by_country/pop
 ```{r functions}
 
 
-expected_cases <- function(cases, pop_at_risk, serial_interval, daily_passengers){
+expected_cases <- function(cases, pop_at_risk, detection_window, daily_passengers){
   
-  out <- cases * pop_at_risk * (1/serial_interval) * (1/daily_passengers)
+  out <- cases * pop_at_risk * (1/detection_window) * (1/daily_passengers)
 
   return(out)
 }
@@ -105,7 +105,7 @@ expected_cases <- function(cases, pop_at_risk, serial_interval, daily_passengers
 binom_lnl <- function(N, cases, prob_travel_during_window){
 
 LnL <- lgamma(N + cases + 1) - lgamma(cases + 1) - lgamma(N + 1) + cases * log(prob_travel_during_window) +
-        (N + cases) * log(1 - prob_travel_during_window)
+        (N) * log(1 - prob_travel_during_window)
 
 return(LnL)
 }
